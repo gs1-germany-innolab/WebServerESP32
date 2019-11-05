@@ -26,9 +26,10 @@ ported for sparkfun esp32
  */
 
 #include <WiFi.h>
+#include <analogWrite.h>
 
-const char* ssid     = "";
-const char* password = "";
+const char* ssid     = "UPC6789107";
+const char* password = "Wr38nwxtbuyV";
 
 WiFiServer server(80);
 
@@ -37,12 +38,38 @@ WiFiServer server(80);
 #include "foot.h"
 #include "plot.h"
 
+// MOTOR CONTROL PINS
+#define pinPwmL 19        // LEFT  MOTOR PWM SPEED CONTROL PIN
+#define pinPwmR 18        // RIGHT MOTOR PWM SPEED CONTROL PIN
+#define pinLB 22          //pin of controlling turning---- IN1 of motor driver board
+#define pinLF 21          //pin of controlling turning---- IN2 of motor driver board
+#define pinRB 17          //pin of controlling turning---- IN3 of motor driver board
+#define pinRF 16          //pin of controlling turning---- IN4 of motor driver board
+
+// DEFINE MOTOR SPEEDS
+#define MOTOR_SPEED_LEFT    200   // Speed of left motor
+#define MOTOR_SPEED_RIGHT   200   // Speed of right motor
+
+// DEFINE MOVEMENT TIMES
+#define MOVE_FORW_MS        4000  // Duration of forwards movement
+#define MOVE_BACK_MS        4000  // Duration of backwards movement
+#define TURN_LEFT_MS        2000  // Duration of left turn
+#define TURN_RIGHT_MS       2000  // Duration of right turn
+
 
 void setup()
 {
     Serial.begin(115200);
     pinMode(5, OUTPUT);      // set the LED pin mode
 
+    // Set motor pins
+    pinMode(pinPwmL, OUTPUT);
+    pinMode(pinPwmR, OUTPUT);
+    pinMode(pinLB, OUTPUT);
+    pinMode(pinLF, OUTPUT);
+    pinMode(pinRB, OUTPUT);
+    pinMode(pinRF, OUTPUT);
+    
     delay(10);
 
     // We start by connecting to a WiFi network
@@ -70,8 +97,24 @@ void setup()
 
 int value = 0;
 
+int set_motors(int left_motor_speed, int right_motor_speed)
+{
+  // Set left motor speed
+  analogWrite(pinPwmL, abs(left_motor_speed));
+  analogWrite(pinPwmR, abs(right_motor_speed));
+
+  // Set left motor direction
+  digitalWrite(pinLF, left_motor_speed > 0);
+  digitalWrite(pinLB, left_motor_speed < 0);
+  digitalWrite(pinRF, right_motor_speed > 0);
+  digitalWrite(pinRB, right_motor_speed < 0);  
+}
+
+
+int move_counter = 0;
+
 void loop(){
- WiFiClient client = server.available();   // listen for incoming clients
+  WiFiClient client = server.available();   // listen for incoming clients
 
   if (client) {                             // if you get a client,
     Serial.println("New Client.");           // print a message out the serial port
@@ -80,8 +123,9 @@ void loop(){
       if (client.available()) {             // if there's bytes to read from the client,
         char c = client.read();             // read a byte, then
         Serial.write(c);                    // print it out the serial monitor
+        
+        // Serve webpage
         if (c == '\n') {                    // if the byte is a newline character
-
           // if the current line is blank, you got two newline characters in a row.
           // that's the end of the client HTTP request, so send a response:
           if (currentLine.length() == 0) {
@@ -92,11 +136,10 @@ void loop(){
             client.println();
 
             // Print html code from external file
-            // client.print(html);
-
             // Print header block
             client.print(head);
-            
+
+            /*
             // Print c variable directly
             String some_variable = "This is a random number defined in the c-code: ";
             int count = random(1, 500); // pick a random number from 1 - 500
@@ -114,14 +157,14 @@ void loop(){
             String js_start = "<script>var values = [";
             String js_end   = "];</script>";
             String sep = ", ";  // seperation
-            
             client.print(js_start + val1 + sep + val2 + sep + val3 + sep + val4 + sep + val5 + sep + val6 + js_end);
+            */
             
             // Print body block
             client.print(body);
 
             // Print plot code
-            client.print(plot);
+            // client.print(plot);
             
             // print footer block
             client.print(foot);
@@ -145,10 +188,42 @@ void loop(){
         if (currentLine.endsWith("GET /L")) {
           digitalWrite(5, LOW);                // GET /L turns the LED off
         }
+
+        // Motor control
+        if (currentLine.endsWith("GET /front")) {
+          set_motors(MOTOR_SPEED_LEFT, MOTOR_SPEED_RIGHT);
+          move_counter = MOVE_FORW_MS;    // time to move forwards in milliseconds
+        }
+        if (currentLine.endsWith("GET /back")) {
+          set_motors(-MOTOR_SPEED_LEFT, -MOTOR_SPEED_RIGHT);
+          move_counter = MOVE_BACK_MS;    // time to move backwards in milliseconds
+        }
+        if (currentLine.endsWith("GET /left")) {
+          set_motors(MOTOR_SPEED_LEFT, -MOTOR_SPEED_RIGHT);
+          move_counter = TURN_LEFT_MS;    // time to move left in milliseconds
+        }
+        if (currentLine.endsWith("GET /right")) {       
+          set_motors(-MOTOR_SPEED_LEFT, MOTOR_SPEED_RIGHT);
+          move_counter = TURN_RIGHT_MS;   // time to move right in milliseconds
+        }
+
+        
       }
     }
     // close the connection:
     client.stop();
     Serial.println("Client Disconnected.");
   }
+
+  // Count down the movement timer
+  move_counter--;
+
+  // If the movement time is zero, stop the motors
+  if (move_counter <= 0) {
+    move_counter = 0;
+    set_motors(0, 0);
+  };
+
+  // Sleep 1 ms
+  delay(1);
 }
