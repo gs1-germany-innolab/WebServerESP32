@@ -28,8 +28,8 @@ ported for sparkfun esp32
 #include <WiFi.h>
 #include <analogWrite.h>
 
-const char* ssid     = "xxx";
-const char* password = "xxx";
+const char* ssid     = "UPC6789107";
+const char* password = "Wr38nwxtbuyV";
 
 WiFiServer server(80);
 
@@ -56,11 +56,21 @@ WiFiServer server(80);
 #define TURN_LEFT_MS        2000  // Duration of left turn
 #define TURN_RIGHT_MS       2000  // Duration of right turn
 
+// DEFINE STATUS LED
+#define LED_STATUS_PIN      5
 
+// COMMENT THIS LINE TO OBTAIN IP DYNAMICALLY
+// #define STATIC_IP
+
+// WIFI IP AND GATEWAY PROPERTIES
+IPAddress localip(192, 168, 0, 184);    // Set your Static IP address 
+IPAddress gateway(192, 168, 0, 1);      // Set your Gateway IP address  
+IPAddress subnet(255, 255, 255, 0);     // Set your Subnet mask 
+  
 void setup()
 {
     Serial.begin(115200);
-    pinMode(5, OUTPUT);      // set the LED pin mode
+    pinMode(LED_STATUS_PIN, OUTPUT);    // set the LED pin mode
 
     // Set motor pins
     pinMode(pinPwmL, OUTPUT);
@@ -72,24 +82,40 @@ void setup()
     
     delay(10);
 
-    // We start by connecting to a WiFi network
-
+    // START WIFI CONNECTION
     Serial.println();
     Serial.println();
     Serial.print("Connecting to ");
     Serial.println(ssid);
 
+    // Configures static IP address
+    #ifdef STATIC_IP
+    if (!WiFi.config(localip, gateway, subnet)) {
+      Serial.println("STA Failed to configure");
+    }
+    #endif
+    
     WiFi.begin(ssid, password);
-
     while (WiFi.status() != WL_CONNECTED) {
+        // Attempt to connect
         delay(500);
         Serial.print(".");
     }
 
+    // FLASH ONBOARD LED TO INDICATE WIFI CONNECTION SUCCESFULL
+    for (int i = 0; i < 10; i++) {
+        digitalWrite(LED_STATUS_PIN, i % 2);
+        delay(100);
+    }
+    
     Serial.println("");
     Serial.println("WiFi connected.");
-    Serial.println("IP address: ");
+    Serial.print("Local IP: ");
     Serial.println(WiFi.localIP());
+    Serial.print("Gateway IP: ");
+    Serial.println(WiFi.gatewayIP());
+    Serial.print("Subnet Mask: ");
+    Serial.println(WiFi.subnetMask());
     
     server.begin();
 
@@ -183,10 +209,10 @@ void loop(){
 
         // Check to see if the client request was "GET /H" or "GET /L":
         if (currentLine.endsWith("GET /H")) {
-          digitalWrite(5, HIGH);               // GET /H turns the LED on
+          digitalWrite(LED_STATUS_PIN, HIGH);               // GET /H turns the LED on
         }
         if (currentLine.endsWith("GET /L")) {
-          digitalWrite(5, LOW);                // GET /L turns the LED off
+          digitalWrite(LED_STATUS_PIN, LOW);                // GET /L turns the LED off
         }
 
         // Motor control
