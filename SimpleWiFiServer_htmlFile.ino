@@ -28,8 +28,8 @@ ported for sparkfun esp32
 #include <WiFi.h>
 #include <analogWrite.h>
 
-const char* ssid     = "UPC6789107";
-const char* password = "Wr38nwxtbuyV";
+const char* ssid     = "xxx";
+const char* password = "xxx";
 
 WiFiServer server(80);
 
